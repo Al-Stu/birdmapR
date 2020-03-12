@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1584018403139.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "864173361",
+    "id" : "4556D76",
+    "lastKnownWriteTime" : 1584027157,
+    "last_content_update" : 1584027157100,
+    "path" : "~/Documents/Masters/birdmapR/data-raw/IOC_v10_1.R",
+    "project_path" : "data-raw/IOC_v10_1.R",
+    "properties" : {
+        "cursorPosition" : "25,69",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

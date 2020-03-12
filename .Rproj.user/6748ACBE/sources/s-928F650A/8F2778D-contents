@@ -1,0 +1,8 @@
+## IOC_v10.1
+
+# download raw xlsx
+IOC_v10.1_raw <- IOC.download(version = '10.1')
+# format using IOC.format
+IOC_v10.1_formatted <- IOC.format(IOC_v10.1_raw)
+
+usethis::use_data(IOC_v10.1_raw,IOC_v10.1_formatted, overwrite = TRUE)

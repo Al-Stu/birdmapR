@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1584024831193.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "B0370E47",
+    "lastKnownWriteTime" : 1583833592,
+    "last_content_update" : 1583833592,
+    "path" : "~/Documents/Masters/Masters_analysis/masters_analysis/collating_species_data.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "239,80",
+        "scrollLine" : "213"
+    },
+    "relative_order" : 7,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

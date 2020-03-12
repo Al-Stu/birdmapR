@@ -1,0 +1,84 @@
+#-------------------------------------------------------------------------#
+#---------------------------- EOL URLSCRAPER  ----------------------------#
+#-------------------------------------------------------------------------#
+
+# EOLURLSCRAPER
+# this function enters each value in search_terms into the eol search bar and returns the links and text from the resultant dropdown menu
+# it returns a dataframe with link text and link for each search term, will return NA if no curated results for search
+# requires Rselenium
+
+
+# author: alice stuart | date modified: 2020-03-11
+# compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
+
+eolurlscraper <- function(search_terms,best_match){
+  eCaps <- list(chromeOptions = list(
+    args = c('--headless', '--disable-gpu', '--window-size=1280,800')
+  ))
+  rD <- RSelenium::rsDriver(extraCapabilities = eCaps)
+  remDr <- rD[["client"]]
+  text <- c()
+  link <- c()
+  url <- cbind(text,link)
+  NA_template <- data.frame(text = NA,
+                            link = NA)
+  remove(text,link)
+  for(i in 1:length(search_terms)){
+    remDr$navigate('https://eol.org/')
+    Sys.sleep(2)
+    # Navigate to search box
+    option <- remDr$findElement(using = 'xpath', "/html/body/div[2]/form")
+    option$clickElement()
+    Sys.sleep(0.5)
+    # Post search term
+    search_box <- remDr$findElement(using = 'css selector', "#q")
+    search_box$sendKeysToElement(list(search_terms[i]))
+    Sys.sleep(2)
+    # navigate to dropdown
+    drop_down <- remDr$findElements(using = 'xpath', "/html/body/div[2]/form/span/div/div/div")
+    if(length(drop_down)==1){
+      url <- rbind(url,extractfromhyperlink("/html/body/div[2]/form/span/div/div/div/a"))
+    } else if (length(drop_down)>1){
+      x_path <- vector(mode = 'character',length = length(drop_down))
+      for(j in 1: length(drop_down)){
+        x_path[j] <- paste('/html/body/div[2]/form/span/div/div/div[',j,']/a',sep='',collapse='')
+      }
+      dropdown_options <- extractfromhyperlink(x_path,remDr)
+      if(best_match == TRUE){
+        option_no <- fuzzymatchposition(search_terms[i],dropdown_options[,1])
+        if(length(option_no)>1){
+          url <- rbind(url, NA_template)
+        } else {
+          url <- rbind(url,dropdown_options[option_no,])
+        }
+      } else {
+        url <- rbind(url, dropdown_options)
+      }
+    } else {
+      url <- rbind(url, NA_template)
+    }
+  }
+  write.csv(url,'EOLurls.csv')
+  remDr$close()
+  rD[["server"]]$stop()
+  rm(rD)
+  gc()
+  return(url)
+}
+
+# EXTRACTFROMHYPERLINK
+# this function extracts the link text and url from an EOL dropdown list, used in eolurlscraper
+# it returns a dataframe with link text and link for each entry in the EOL dropdown list
+
+
+extractfromhyperlink <- function(x_path,remDr){
+  text <- c()
+  link <- c()
+  for(i in 1:length(x_path)){
+    dropdown_element <- remDr$findElement(using = 'xpath', x_path[i])
+    text[i] <- dropdown_element$getElementText()
+    link[i] <- dropdown_element$getElementAttribute(attrName = 'href')
+  }
+  result <- cbind(as.character(unlist(text)),as.character(unlist(link)))
+  return(result)
+}
