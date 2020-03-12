@@ -22,10 +22,11 @@ otidiformes_data[['EOL_urls_bestmatch']] <- unique(otidiformes_data[['EOL_urls_b
 otidiformes_data[['EOL_urls_all']] <- eolurlscraper(latin_names = otidiformes_data[['IOC_altnames']]$scientificName,internalTaxonId = otidiformes_data[['IOC_altnames']]$internalTaxonId,best_match = FALSE)
 otidiformes_data[['EOL_urls_all']] <- unique(otidiformes_data[['EOL_urls_all']][!is.na(otidiformes_data[['EOL_urls_all']]$link),])
 
-duplicated_rows <- duplicated(otidiformes_data[['EOL_urls_all']][c('internalTaxonId','text')])
-dup_row_check <- otidiformes_data[['EOL_urls_all']][duplicated_rows,]
-
 # add EOL common names
-otidiformes_data[['EOL_common_names']] <-
+otidiformes_data[['EOL_common_names']] <- EOL.commonnamescraper(otidiformes_data[['EOL_urls_all']])
+
+# add EOL alternate scientific names
+otidiformes_data[['EOL_sci_names']] <- EOL.scinamescraper(otidiformes_data[['EOL_urls_all']])
+
 
 usethis::use_data(IOC_v10.1_raw,IOC_v10.1_formatted, overwrite = TRUE)

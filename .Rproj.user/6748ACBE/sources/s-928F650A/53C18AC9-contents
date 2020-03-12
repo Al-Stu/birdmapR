@@ -10,11 +10,11 @@
 # author: alice stuart and matt lewis | date modified: 2020-03-11
 # compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
 
-EOL.scinamescraper <- function(sppnames,urls){
+EOL.scinamescraper <- function(EOL_urls){
   name_url <- c()
   latin_names_df <- list()
-  for(l in 1:length(urls)){
-    name_url[l] <- paste(urls[l],'/names',sep='',collapse='')
+  for(l in 1:length(EOL_urls$link)){
+    name_url[l] <- paste(EOL_urls$link[l],'/names',sep='',collapse='')
     alt_name_text <- EOL.textboxfromurl(urls = name_url[l], x_path = '/html/body/div[3]/div[2]/div/div[1]/div[2]/div/div[2]')
     if(is.null(alt_name_text)==FALSE){
       kept_alt_names<-c()
@@ -31,23 +31,27 @@ EOL.scinamescraper <- function(sppnames,urls){
           kept_alt_names <- c(kept_alt_names,name)
         }
       }
-      kept_sci_names <- c(as.character(sppnames[l]),kept_alt_names)
+      kept_sci_names <- c(as.character(EOL_urls$text[l]),kept_alt_names)
       latin_names_df[[l]] <- data.frame(name=kept_alt_names,type="scientific",language="latin")
       latin_names_df[[l]] <- unique(latin_names_df[[l]])
       latin_names_df[[l]]$main <- c('true',rep_len('false',(nrow(latin_names_df[[l]])-1)))
     }  else {
-      latin_names_df[[l]] <- data.frame(name=sppnames[l],type="scientific",language="latin",main='true')
+      latin_names_df[[l]] <- data.frame(name=EOL_urls$text[l],type="scientific",language="latin",main='true')
     }
   }
-  return(latin_names_df)
+  latin_names <- EOL.nameslisttodf(latin_names_df,EOL_urls$internalTaxonId)
+  latin_names <- latin_names[,c(1:3,5)]
+  return(latin_names)
 }
 
 # EOLCOMNAMESCRAPER
 # as above but common names
 
-EOL.commonnamescraper <- function(ids,sppnames,urls){
-  for(l in 1:length(urls)){
-    name_url[l] <- paste(urls[l],'/names',sep='',collapse='')
+EOL.commonnamescraper <- function(EOL_urls){
+  name_url <- c()
+  common_names_df <- list()
+  for(l in 1:length(EOL_urls$link)){
+    name_url[l] <- paste(EOL_urls$link[l],'/names',sep='',collapse='')
     page <- xml2::read_html(name_url[l])
     common_name_nodes <- rvest::html_nodes(page, xpath='/html/body/div[3]/div[2]/div/div[2]/div[1]/div/div[2]/div/div')
     common_name_list <- as.list(as.character(rvest::html_text(rvest::html_children(common_name_nodes))))
@@ -73,7 +77,7 @@ EOL.commonnamescraper <- function(ids,sppnames,urls){
       common_names_df[[l]] <- data.frame(name=NA,type=NA)
     }
   }
-  common_names <- EOL.nameslisttodf(common_names_df,ids)
+  common_names <- EOL.nameslisttodf(common_names_df,EOL_urls$internalTaxonId)
   return(common_names)
 }
 
@@ -91,14 +95,18 @@ EOL.textboxfromurl <- function(urls, x_path){
 
 # EOL.NAMELISTTODF
 EOL.nameslisttodf <- function(nameslist, ids){
+  names <- c()
   for(i in 1:length(nameslist)){
     internalTaxonId <- rep_len(ids[i],
                                nrow(nameslist[[i]]))
+    temp_df <- NULL
     temp_df <- cbind(internalTaxonId,nameslist[[i]])
-    if(i==1){
-      names <- temp_df
-    } else {
-      names <- rbind(names,temp_df)
+    if(length(temp_df)!=3){
+      if(length(names)<1){
+        names <- temp_df
+      } else {
+        names <- rbind(names,temp_df)
+      }
     }
   }
   names$source <- rep_len('EOL',nrow(names))
