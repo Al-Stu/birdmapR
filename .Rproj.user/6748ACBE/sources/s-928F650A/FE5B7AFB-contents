@@ -1,0 +1,395 @@
+#-------------------------------------------------------------------------#
+#---------------------- COLLATING SPECIES DATA ---------------------------#
+#-------------------------------------------------------------------------#
+
+# This script collates data already downloaded by the user from the IUCN Red List website into a list, combines data with one line per species into 'assessments' and adds alternate names
+# It outputs list 'species_data' containing assessments information, common names, conservation needed, countries, credits, habitats, references, research needed, threats, all scientific names
+
+# currently data files just for raptors
+
+# author: alice stuart | date modified: 2020-02-27
+
+### libraries ------------------------------------------------------------
+library(tidyverse)
+library(textclean)
+library(readtext)
+library(tm)
+library(rvest)
+library(httr)
+library(purrr)
+library(dplyr)
+library(RSelenium)
+library(BBmisc)
+
+### define working directories -------------------------------------------
+main_wd <- '/Users/Alice/Documents/Masters/Masters_analysis/masters_analysis'
+RL_data_wd <- '/Users/Alice/Documents/Masters/DO NOT TOUCH redlist data copy'
+
+### read in data ---------------------------------------------------------
+# RL files
+setwd(RL_data_wd)
+
+files = list.files(pattern='*.csv')
+species_data <- lapply(files, read.csv)
+names(species_data) <- gsub(x = files, pattern = '.csv',replacement = '')
+remove(files)
+
+setwd(main_wd)
+
+# alternate taxonomy
+alternate_taxonomy <- read.csv('alternate_taxonomy.csv')
+colnames(alternate_taxonomy)[1] <- 'scientificName'
+
+### neaten RL data ----------------------------------------------------------
+# merge dataframes with one line per species
+species_data[['assessments']] <- merge(species_data[['assessments']], species_data[['simple_summary']], all = TRUE)
+species_data[['assessments']] <- merge(species_data[['assessments']], species_data[['taxonomy']], all = TRUE)
+
+species_data[['simple_summary']] <- NULL
+species_data[['taxonomy']] <- NULL
+
+# remove columns with only NA
+species_data[['assessments']] <- species_data[['assessments']][, colSums(is.na(species_data[['assessments']])) != nrow(species_data[['assessments']])]
+
+# rename assessments to species
+names(species_data)[1] <- 'species'
+
+# add source column to and remove scientificName from common names
+species_data[['common_names']]$source <- rep_len('RL',nrow(species_data[['common_names']])) 
+species_data[['common_names']] <- species_data[['common_names']][,c('internalTaxonId','name','language','main','source')]
+
+### add alternate taxonomy data (works for all birds) ------------------------------
+# select only spp. included in Red List dataset and add internalTaxonId
+alternate_taxonomy <- merge(alternate_taxonomy, species_data[['species']][,c(1:2)])
+
+# combine names into one column and add to species_data
+species_data[['all_scientific_names']] <- alternate_taxonomy[,c('internalTaxonId','scientificName')]
+species_data[['all_scientific_names']]$scientificName <- as.character(species_data[['all_scientific_names']]$scientificName)
+species_data[['all_scientific_names']]$main <- rep_len('true',nrow(species_data[['all_scientific_names']]))
+  
+internalTaxonId <- NA
+scientificName <- NA
+main <- NA
+for(i in 2:10){
+  internalTaxonId <- alternate_taxonomy$internalTaxonId
+  scientificName <- alternate_taxonomy[,i]
+  temp_alternate_name <- cbind.data.frame(internalTaxonId,scientificName)
+  temp_alternate_name$main <- rep_len('false',nrow(temp_alternate_name))
+  colnames(temp_alternate_name) <- c('internalTaxonId','scientificName','main')
+  species_data[['all_scientific_names']] <- rbind(species_data[['all_scientific_names']],temp_alternate_name)
+}
+remove(internalTaxonId,scientificName,main,alternate_taxonomy,temp_alternate_name)
+
+# add unique names in dataframe to species_data list
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][species_data[['all_scientific_names']]$scientificName!='',]
+unique_rows <- !duplicated(species_data[['all_scientific_names']][c('internalTaxonId',"scientificName")])
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][unique_rows,]
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][order(species_data[['all_scientific_names']]$internalTaxonId),]
+rownames(species_data[['all_scientific_names']]) <- c(1:nrow(species_data[['all_scientific_names']]))
+
+# deal with names with brackets
+## convert column type to character
+species_data[['all_scientific_names']]$scientificName <- as.character(species_data[['all_scientific_names']]$scientificName)
+
+## copy names with brackets to another dataframe
+names_with_brackets <- grep(pattern = '[(].*[)]', x = species_data[['all_scientific_names']]$scientificName)
+names_with_brackets <- as.data.frame(species_data[['all_scientific_names']][names_with_brackets,])
+colnames(names_with_brackets) <- colnames(species_data[['all_scientific_names']])
+
+## remove punctuation from names (Milvus (milvus) fasciicauda -> Milvus milvus fasciicauda)
+species_data[['all_scientific_names']]$scientificName <- removePunctuation(species_data[['all_scientific_names']]$scientificName)
+
+## remove words within brackets from names (Milvus (milvus) fasciicauda -> Milvus fasciicauda) and bind to main dataset
+names_with_brackets$scientificName <- gsub("\\s*\\([^\\)]+\\)","",names_with_brackets$scientificName)
+species_data[['all_scientific_names']] <- rbind(species_data[['all_scientific_names']],names_with_brackets)
+remove(names_with_brackets)
+
+## remove any duplicates this has created and re-order
+unique_rows <- !duplicated(species_data[['all_scientific_names']][c('internalTaxonId',"scientificName")])
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][unique_rows,]
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][order(species_data[['all_scientific_names']]$internalTaxonId),]
+
+# add source column
+species_data[['all_scientific_names']]$source <- rep_len("RL+",nrow(species_data[['all_scientific_names']]))
+
+### find EOL urls --------------------------------------------------------
+# if already done
+species_data[['species_links']] <- read.csv('EOLurls.csv')
+species_data[['species_links']] <- cbind(species_data[['all_scientific_names']][,c("internalTaxonId")],species_data[['species_links']])
+species_data[['species_links']] <- species_data[['species_links']][,-2]
+colnames(species_data[['species_links']])[1] <- 'internalTaxonId'
+species_data[['species_links']] <- na.omit(species_data[['species_links']])
+species_data[['species_links']] <- unique(species_data[['species_links']])
+rownames(species_data[['species_links']]) <- c(1:nrow(species_data[['species_links']]))
+
+# else
+## data
+eol_url <- "https://eol.org/"
+
+dir <- '/Users/Alice/Documents/Masters/Masters_analysis/masters_analysis'
+
+search_terms <- species_data[['all_scientific_names']]$scientificName
+
+## scraping
+remDr$close()
+rm(rD)
+gc()
+
+rD <- rsDriver()
+remDr <- rD[["client"]]
+text <- rep_len(NA,length.out = length(search_terms))
+link <- rep_len(NA,length.out = length(search_terms))
+url <- cbind(text,link)
+remove(text,link)
+
+for(i in 1005:length(search_terms)){
+  remDr$navigate(eol_url)
+  Sys.sleep(2)
+  # Navigate to search box
+  option <- remDr$findElement(using = 'xpath', "/html/body/div[2]/form")
+  option$clickElement()
+  Sys.sleep(0.5)
+  # Post search term
+  search_box <- remDr$findElement(using = 'css selector', "#q")
+  search_box$sendKeysToElement(list(search_terms[i]))
+  Sys.sleep(2)
+  drop_down <- remDr$findElements(using = 'xpath', "/html/body/div[2]/form/span/div/div/div")
+  if(length(drop_down)==1){
+    url[i,] <- extractfromhyperlink("/html/body/div[2]/form/span/div/div/div/a")
+  } else if (length(drop_down)>1){
+    x_path <- vector(mode = 'character',length = length(drop_down))
+    for(j in 1: length(drop_down)){
+      x_path[j] <- paste('/html/body/div[2]/form/span/div/div/div[',j,']/a',sep='',collapse='')
+    }
+    dropdown_options <- extractfromhyperlink(x_path)
+    option_no <- fuzzymatchposition(search_terms[i],dropdown_options[,1])
+    if(length(option_no)>1){
+      url[i,] <- c(NA,NA)
+    } else {
+      url[i,] <- dropdown_options[option_no,]
+    }
+  } else {
+    url[i,] <- c(NA,NA)
+  }
+}
+
+write.csv(url,'EOLurls.csv')
+
+remDr$close()
+
+rD[["server"]]$stop() 
+
+# create database of IUCN species and their EOL links
+species_data[['species_links']] <- species_data[['all_scientific_names']][,c("internalTaxonId","text","link")]
+species_data[['species_links']] <- na.omit(species_data[['species_links']])
+species_data[['species_links']] <- unique(species_data[['species_links']])
+rownames(species_data[['species_links']]) <- c(1:nrow(species_data[['species_links']]))
+
+
+### add EOL latin names --------------------------------------------------
+name_url <- c()
+latin_names_df <- list()
+
+for(l in 1:length(species_data[['species_links']]$link)){
+  name_url[l] <- paste(species_data[['species_links']]$link[l],'/names',sep='',collapse='')
+  page <- read_html(name_url[l])
+  
+  # Alternative names
+  alt_name_nodes <- html_nodes(page,xpath = '/html/body/div[3]/div[2]/div/div[1]/div[2]/div/div[2]')
+  
+  alt_name_text <- unlist(strsplit(html_text(alt_name_nodes),split="\n"))
+  alt_name_text <- alt_name_text[which(alt_name_text != "")]
+  if(is.null(alt_name_text)==FALSE){
+    kept_alt_names<-c()
+    for(i in 1:length(alt_name_text)){
+      if(grepl("Synonym|Reference|according", alt_name_text[i]) == F){
+        name <- unlist(strsplit(alt_name_text[i],split=" "))
+        if(length(name)<=2){
+          name <- paste(name, collapse = ' ')
+        } else if(name[3]==tolower(name[3])){
+          name <- paste(name[1:3],collapse=" ")
+        }else{
+          name <- paste(name[1:2],collapse=" ")
+        }
+        kept_alt_names <- c(kept_alt_names,name)
+      }
+    }
+    kept_sci_names <- c(as.character(species_data[['species_links']]$text[l]),kept_alt_names)
+    latin_names_df[[l]] <- data.frame(name=kept_sci_names)
+    latin_names_df[[l]] <- unique(latin_names_df[[l]])
+    latin_names_df[[l]]$main <- c('true',rep_len('false',(nrow(latin_names_df[[l]])-1)))
+    
+  }  else {
+    latin_names_df[[l]] <- data.frame(name=as.character(species_data[['species_links']]$text[l]),main='true')
+  }
+}
+
+# make dataframe
+for(i in 1:length(latin_names_df)){
+  internalTaxonId <- rep_len(species_data[['species_links']]$internalTaxonId[i],
+                             nrow(latin_names_df[[i]]))
+  temp_df <- cbind(internalTaxonId,latin_names_df[[i]])
+  if(i==1){
+    EOL_sci_names <- temp_df
+  } else {
+    EOL_sci_names <- rbind(EOL_sci_names,temp_df)
+  }
+}
+EOL_sci_names$source <- rep_len('EOL',nrow(EOL_sci_names))
+
+colnames(EOL_sci_names) <- c('internalTaxonId','scientificName','main','source')
+
+# add to all_sci_names
+species_data[['all_scientific_names']] <- rbind(species_data[['all_scientific_names']],EOL_sci_names)
+remove(latin_names_df,page,alt_name_nodes,alt_name_text,kept_alt_names,name,kept_sci_names)
+
+
+### clean up sci names ---------------------------------------------------
+# remove blank sci names 
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][!(is.na(species_data[['all_scientific_names']]$scientificName) | species_data[['all_scientific_names']]$scientificName=="") | is.null(species_data[['all_scientific_names']]$scientificName), ]
+
+# remove duplicate sci names within a spp.
+unique_rows <- !duplicated(species_data[['all_scientific_names']][c('internalTaxonId',"scientificName")])
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][unique_rows,]
+
+# remove duplicate sci name if it's not the main name for that spp.
+duplicate_sci_names <- findduplicates(species_data[['all_scientific_names']]$scientificName)
+duplicate_sci_names$main <- species_data[['all_scientific_names']]$main[duplicate_sci_names$position]
+duplicate_sci_names <- duplicate_sci_names[duplicate_sci_names$main!='true',]
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][-duplicate_sci_names$position,]
+
+remove(duplicate_sci_names)
+
+### fix latin names with ? in (manually)
+question_sci_names <- grep(pattern = '[?]',x=species_data[['all_scientific_names']]$scientificName)
+question_sci_names <- cbind(as.character(species_data[['all_scientific_names']]$scientificName[question_sci_names]),
+                            species_data[['all_scientific_names']]$internalTaxonId[question_sci_names],
+                            question_sci_names)
+actual_names <- c('Spilornis sulaensis', 'Accipiter fujiyamae', 
+                                     'Accipiter canescens', 'Circus hudsonius',
+                                     'Bubo wapacuthu')
+question_sci_names <- as.numeric(grep(pattern = '[?]',x=species_data[['all_scientific_names']]$scientificName))
+species_data[['all_scientific_names']]$scientificName <- as.character(species_data[['all_scientific_names']]$scientificName)
+species_data[['all_scientific_names']][question_sci_names,]$scientificName <- actual_names
+
+### remove names with only one word
+species_data[['all_scientific_names']] <- species_data[['all_scientific_names']][grep(pattern = '[a-z]\\s[a-z]',x=species_data[['all_scientific_names']]$scientificName),]
+
+### add EOL common names -------------------------------------------------
+name_url <- c()
+common_names_df <- list()
+
+for(l in 1:length(species_data[['species_links']]$link)){
+  name_url[l] <- paste(species_data[['species_links']]$link[l],'/names',sep='',collapse='')
+  page <- read_html(name_url[l])
+  common_name_nodes <- html_nodes(page, xpath='/html/body/div[3]/div[2]/div/div[2]/div[1]/div/div[2]/div/div')
+  common_name_list <- as.list(as.character(html_text(html_children(common_name_nodes))))
+  names_template <- data.frame(name=character(), language = character(), main = factor(levels = c('true','false')))
+  if(length(common_name_list)!=0)  {
+    for(i in 1:length(common_name_list)){
+      names <- unlist(strsplit(common_name_list[[i]][1],split="\n"))
+      preferred <- grepl('preferred',names)
+      names <- names[names != "" & grepl("Recognize|recognize|prefer",names)==F]
+      if(i==1){
+        common_names_df[[l]] <- names_template
+      }
+      if(length(names)!=0){
+        temp_main <- rep_len(tolower(any(preferred)),length(names))
+        temp_language <- rep_len('English',length(names))
+        temp_df <- cbind(as.character(names),temp_language,temp_main)
+        colnames(temp_df) <- c('name','language','main')
+        common_names_df[[l]]<- rbind(common_names_df[[l]],temp_df)
+      }
+    }
+    common_names_df[[l]] <-unique(common_names_df[[l]])
+  } else {
+    common_names_df[[l]] <- data.frame(name=NA,language=NA,main=NA)
+  }
+}
+remove(common_name_list,common_name_nodes,names_template,page)
+
+# EOL common name dataframe  
+for(i in 1:length(common_names_df)){
+  internalTaxonId <- rep_len(species_data[['species_links']]$internalTaxonId[i],
+                             nrow(common_names_df[[i]]))
+  temp_df <- cbind(internalTaxonId,common_names_df[[i]])
+  if(i==1){
+    EOL_common_names <- temp_df
+  } else {
+    EOL_common_names <- rbind(EOL_common_names,temp_df)
+  }
+}
+remove(temp_df,common_names_df)
+
+EOL_common_names <- na.omit(EOL_common_names)
+EOL_common_names <- unique(EOL_common_names)
+EOL_common_names$source <- rep_len('EOL',nrow(EOL_common_names))
+colnames(EOL_common_names) <- c('internalTaxonId','name','language','main','source')
+
+# add to RL common names
+species_data[['common_names']] <- rbind(species_data[['common_names']],EOL_common_names)
+
+### remove common names that are the same between species ----------------
+# remove blank common names
+species_data[['common_names']] <- species_data[['common_names']][!(is.na(species_data[['common_names']]$name) | species_data[['common_names']]$name=="") | is.null(species_data[['common_names']]$name), ]
+
+# remove duplicate common names within a spp.
+unique_rows <- !duplicated(species_data[['common_names']][c('internalTaxonId',"name")])
+species_data[['common_names']] <- species_data[['common_names']][unique_rows,]
+
+# remove non-main common names that are duplicates
+duplicate_common_names <- findduplicates(species_data[['common_names']]$name)
+duplicate_common_names$main <- species_data[['common_names']]$main[duplicate_common_names$position]
+duplicate_common_names <- duplicate_common_names[duplicate_common_names$main!='true',]
+species_data[['common_names']] <- species_data[['common_names']][-duplicate_common_names$position,]
+
+# manually check last few names
+duplicate_common_names <- findduplicates(species_data[['common_names']]$name)
+duplicate_common_names$internalTaxonId <- species_data[['common_names']]$internalTaxonId[duplicate_common_names$position]
+duplicate_common_names <- duplicate_common_names[duplicate_common_names$internalTaxonId!='62023843',]
+species_data[['common_names']] <- species_data[['common_names']][-duplicate_common_names$position,]
+
+remove(duplicate_common_names)
+
+### create species search terms ------------------------------------------
+# common name search term
+species_data[['species']]$species_common_search <- NA
+for(i in 1:length(species_data[['species']]$internalTaxonId)){
+  species_data[['species']]$species_common_search[i] <- paste(unique(tolower(removePunctuation(as.character(species_data[['common_names']]$name[grep(pattern = 'TRUE', x = species_data[['common_names']]$internalTaxonId == species_data[['species']]$internalTaxonId[i])])))),
+                                                                sep = '|', collapse = '|')
+  species_data[['species']]$species_common_search[i] <- tolower(species_data[['species']]$species_common_search[i])
+}
+
+# remove two letter search terms
+species_data[['species']]$species_common_search <- gsub("[|]..[|]",'|',species_data[['species']]$species_common_search)
+species_data[['species']]$species_common_search <- gsub("[|]..$",'',species_data[['species']]$species_common_search)
+
+
+# scientific name search term
+## create and populate abbreviated scientific name column
+species_data[['all_scientific_names']]$abbrev_scientificName <- NA
+scinames_word_list <- list()
+scinames_otherwordlist <- list()
+for(i in 1:length(species_data[['all_scientific_names']]$abbrev_scientificName)){
+  scinames_word_list[[i]] <- str_split(species_data[['all_scientific_names']]$scientificName[i],pattern = ' ')[1]
+  scinames_otherwordlist[[i]] <- paste(scinames_word_list[[i]][[1]][-1],
+                                  sep = ' ', collapse = ' ')
+  species_data[['all_scientific_names']]$abbrev_scientificName[i] <- paste(substr(scinames_word_list[[i]][[1]][1],1,1),
+                                                                           scinames_otherwordlist[[i]],
+                                                                           sep = ' ', collapse = ' ' )
+}
+remove(scinames_word_list,scinames_otherwordlist)
+
+## concat into search term
+species_data[['species']]$species_sci_search <- NA
+for(i in 1:length(species_data[['species']]$internalTaxonId)){
+  species_data[['species']]$species_sci_search[i] <- paste(as.character(species_data[['all_scientific_names']]$scientificName[grep(pattern = 'TRUE', x = species_data[['all_scientific_names']]$internalTaxonId == species_data[['species']]$internalTaxonId[i])]),
+                                                           as.character(species_data[['all_scientific_names']]$abbrev_scientificName[grep(pattern = 'TRUE', x = species_data[['all_scientific_names']]$internalTaxonId == species_data[['species']]$internalTaxonId[i])]),
+                                                           sep = '|', collapse = '|')
+}
+remove(i)
+
+### export species_data --------------------------------------------------
+exportlist(list = species_data,directory = main_wd,name = 'species_data')
+write.csv(EOL_common_names,'EOL_common_names.csv')
+write.csv(EOL_sci_names,'EOL_sci_names.csv')

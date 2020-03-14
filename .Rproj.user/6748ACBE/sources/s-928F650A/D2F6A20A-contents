@@ -1,0 +1,107 @@
+#-------------------------------------------------------------------------#
+#---------------------------- IOC BIRD LIST  -----------------------------#
+#-------------------------------------------------------------------------#
+
+# IOC.CURRENTVER
+# this function finds the most recent version of the IOC bird list
+# it returns a version number
+# requires rvest
+
+# author: alice stuart and matt lewis | date modified: 2020-03-12
+# compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
+
+## NOT WORKING, PROBLEM W/ NODES IN TEXTBOXFROMURL
+IOC.currentver <- function(){
+  text <- textboxfromurl('https://www.worldbirdnames.org/ioc-lists/master-list-2/','//*[@id="header"]')[2]
+  text <- gsub(pattern = '^.*version',x = text, replacement = 'version')
+  text <- gsub(pattern = '\\sHome$',x = text, replacement = '')
+  text <- unlist(strsplit(text, split = '\\s'))
+  return(text)
+}
+
+# IOC.DOWNLOAD
+IOC.download <- function(version){
+  res <- httr::GET("https://www.worldbirdnames.org/ioc-lists/master-list-2/")
+  doc <- xml2::read_html(httr::content(res, as='text'))
+  nodes <- rvest::html_nodes(doc, ".post-bodycopy")
+  node_text <- unlist(as.character(nodes[[1]]))
+  links <- as.character(stringr::str_extract_all(string = node_text, pattern = 'href=["].*["]'))
+  links <- strsplit(links,',')
+  links <- links[[1]][grepl(pattern = 'vs_other', x = links[[1]])]
+  links <- gsub(pattern = '^.*\\\"https:', replacement = 'https:', x = links)
+  links <- gsub(pattern = 'xlsx.*$', replacement = 'xlsx', x = links)
+  correct_link <- links[grepl(pattern = version,x=links)]
+  httr::GET(correct_link, httr::write_disk(tf <- tempfile(fileext = ".xlsx")))
+  df <- readxl::read_excel(tf, 1L)
+  return(df)
+}
+
+# IOC.FORMAT 
+# formats IOC data into a tibble with species ID and scientific name according to each taxonomy
+IOC.format <- function(IOCsheet){
+  columns <- colnames(IOCsheet)
+  keep_cols <- grepl(pattern = 'rank|notes|group|family|volume|red list category', x = columns, ignore.case = TRUE) == FALSE
+  taxonomies <- IOCsheet[,keep_cols]
+  av_string_length <- c(100)
+  for(i in 2:ncol(taxonomies)){
+    temp_names <- na.omit(taxonomies[,i])
+    temp_length <- NULL
+    temp_length <- apply(temp_names,1,nchar)
+    av_string_length[i] <- mean(temp_length)
+  }
+  keep_cols <- av_string_length >=3
+  taxonomies <- taxonomies[,keep_cols]
+  colnames(taxonomies)[1] <- 'sequence'
+  columns <- colnames(taxonomies)
+  IUCN_column <- grep(pattern = 'Handbook of the Birds of the World and BirdLife International digital checklist of the birds of the world', x = columns, ignore.case = TRUE)
+  taxonomies <- taxonomies[,c(1,IUCN_column,c(2:(IUCN_column-1)),c((IUCN_column+1):ncol(taxonomies)))]
+  taxonomies <- tidyr::fill(taxonomies,2)
+  temp_colname <- colnames(taxonomies)[2]
+  colnames(taxonomies)[2] <- 'scientificName'
+  taxonomies <- merge(taxonomies, cleaned_redlist_data[['species_data']][,c(1:2)])
+  colnames(taxonomies)[2] <- temp_colname
+  taxonomies <- tidyr::as_tibble(taxonomies)
+  return(taxonomies)
+}
+
+# IOC.tidy
+# converts formatted IOC world bird list to a tidy tibble, 
+
+
+# IOC.ALTNAMES
+IOC.altnames <- function(formattedIOC, cleaned_redlist_data){
+  # select only spp. included in Red List dataset and add internalTaxonId
+  names(formattedIOC)[2] <- 'scientificName'
+  
+
+  # combine names into one column and add to species_data
+  all_scientific_names <- alternate_taxonomy[,c('internalTaxonId','scientificName')]
+  all_scientific_names$scientificName <- as.character(all_scientific_names$scientificName)
+  all_scientific_names$main <- rep_len('true',nrow(all_scientific_names))
+  colnames(all_scientific_names)[2] <- 'name'
+
+  internalTaxonId <- NA
+  name <- NA
+  main <- NA
+  for(i in 3:ncol(formattedIOC)){
+    internalTaxonId <- alternate_taxonomy$internalTaxonId
+    name <- alternate_taxonomy[,i]
+    temp_alternate_name <- cbind.data.frame(internalTaxonId,name)
+    temp_alternate_name$main <- rep_len('false',nrow(temp_alternate_name))
+    colnames(temp_alternate_name) <- c('internalTaxonId','name','main')
+    all_scientific_names <- rbind(all_scientific_names,temp_alternate_name)
+  }
+  all_scientific_names <- unique(all_scientific_names[!is.na(all_scientific_names$name),])
+  duplicated_rows <- duplicated(all_scientific_names[c('internalTaxonId','name')])
+  dup_row_check <- all_scientific_names[duplicated_rows,]
+  if(all(dup_row_check$main == 'false')){
+    all_scientific_names <- all_scientific_names[!duplicated_rows,]
+  } else {
+    warning('something went wrong removing duplicates')
+  }
+  all_scientific_names <- all_scientific_names[order(all_scientific_names$internalTaxonId),]
+  source <- rep_len('IOC', nrow(all_scientific_names))
+  all_scientific_names <- cbind(all_scientific_names,source)
+  rownames(all_scientific_names) <- c(1:nrow(all_scientific_names))
+  return(all_scientific_names)
+}

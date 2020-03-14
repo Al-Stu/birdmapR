@@ -6,7 +6,7 @@
 # import and neaten RL data
 
 # author: alice stuart | date modified: 2020-03-11
-# compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
+# compiled in R version 3.6.3 (2020-03-12) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
 # merge dataframes with one line per species
 RL.clean <- function(species_data){
   species_data[['assessments']] <- merge(species_data[['assessments']], species_data[['simple_summary']], all = TRUE)
@@ -22,6 +22,7 @@ RL.clean <- function(species_data){
 
   # add source column to and remove scientificName from common names
   species_data[['common_names']]$source <- rep_len('RL',nrow(species_data[['common_names']]))
-  # species_data[['common_names']] <- species_data[['common_names']][,c('internalTaxonId','name','language','main','source')]
+  species_data[['common_names']] <- merge(species_data[['species_data']][,c(1,2)],species_data[['common_names']])
+  species_data[['common_names']] <- species_data[['common_names']][,-1]
   return(species_data)
 }
