@@ -30,7 +30,7 @@ importcsvlist <- function(directory, pattern){
   current_wd <- getwd()
   setwd(directory)
   files <- list.files(pattern = paste(pattern,".*","csv$",sep='',collapse=''))
-  result <- lapply(files, read.csv)
+  result <- lapply(files, readr::read_csv)
   names(result) <- gsub(x = files, pattern = '.csv',replacement = '')
   names(result) <- gsub(x = names(result), pattern = pattern, replacement = '')
   for(i in 1:length(result)){

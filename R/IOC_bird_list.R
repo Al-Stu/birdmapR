@@ -10,6 +10,7 @@
 # author: alice stuart and matt lewis | date modified: 2020-03-12
 # compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
 
+## NOT WORKING, PROBLEM W/ NODES IN TEXTBOXFROMURL
 IOC.currentver <- function(){
   text <- textboxfromurl('https://www.worldbirdnames.org/ioc-lists/master-list-2/','//*[@id="header"]')[2]
   text <- gsub(pattern = '^.*version',x = text, replacement = 'version')
@@ -36,51 +37,52 @@ IOC.download <- function(version){
 }
 
 # IOC.FORMAT
+# formats IOC data into a tibble with species ID and scientific name according to each taxonomy
 IOC.format <- function(IOCsheet){
   columns <- colnames(IOCsheet)
-  keep_cols <- grepl(pattern = 'rank|notes|group|family|volume|red list category', x = columns, ignore.case = TRUE) == FALSE
+  av_string_length <- averagestringlength(IOCsheet)
+  keep_cols <- (grepl(pattern = 'rank|notes|group|family|volume|red list category', x = columns, ignore.case = TRUE) == FALSE
+                & av_string_length >=3)
   taxonomies <- IOCsheet[,keep_cols]
-  av_string_length <- c(100)
-  for(i in 2:ncol(taxonomies)){
-    temp_names <- na.omit(taxonomies[,i])
+  columns <- colnames(taxonomies)
+  IUCN_column <- as.numeric(grep(pattern = 'Handbook of the Birds of the World and BirdLife International digital checklist of the birds of the world',
+                                 x = columns, ignore.case = TRUE))
+  taxonomies <- tidyr::fill(taxonomies,IUCN_column)
+  taxonomies <- taxonomies[,c(1,IUCN_column,c(2:(IUCN_column-1)),c((IUCN_column+1):ncol(taxonomies)))]
+  colnames(taxonomies)[2] <- c(columns[IUCN_column])
+  taxonomies <- tidyr::as_tibble(taxonomies)
+  return(taxonomies)
+}
+
+# averagestringlength
+# finds average string length of each column of a dataframe
+averagestringlength <- function(df){
+  av_string_length <- c()
+  for(i in 1:ncol(df)){
+    temp_names <- na.omit(df[,i])
     temp_length <- NULL
     temp_length <- apply(temp_names,1,nchar)
     av_string_length[i] <- mean(temp_length)
   }
-  keep_cols <- av_string_length >=3
-  taxonomies <- taxonomies[,keep_cols]
-  colnames(taxonomies)[1] <- 'sequence'
-  columns <- colnames(taxonomies)
-  IUCN_column <- grep(pattern = 'Handbook of the Birds of the World and BirdLife International digital checklist of the birds of the world', x = columns, ignore.case = TRUE)
-  taxonomies <- taxonomies[,c(1,IUCN_column,c(2:(IUCN_column-1)),c((IUCN_column+1):ncol(taxonomies)))]
-  taxonomies <- tidyr::fill(taxonomies,2)
-  return(taxonomies)
+  return(av_string_length)
 }
 
 # IOC.ALTNAMES
-IOC.altnames <- function(formattedIOC, cleaned_redlist_data){
-  # select only spp. included in Red List dataset and add internalTaxonId
-  names(formattedIOC)[2] <- 'scientificName'
-  alternate_taxonomy <- merge(formattedIOC, cleaned_redlist_data[['species_data']][,c(1:2)])
-
+IOC.altnames <- function(formattedIOC,cleaned_redlist_data){
+  # select only target spp.
+  temp_colname <- colnames(formattedIOC)[2]
+  colnames(formattedIOC)[2] <- 'scientificName'
+  altnames <- merge(cleaned_redlist_data[['species_data']][,c(1:2)],formattedIOC[,-1])
+  altnames <- altnames[,c(2,1,c(3:ncol(altnames)))]
+  colnames(altnames)[2] <- temp_colname
+  altnames_gathered <- tidyr::gather(altnames, database, name, -internalTaxonId)
   # combine names into one column and add to species_data
-  all_scientific_names <- alternate_taxonomy[,c('internalTaxonId','scientificName')]
-  all_scientific_names$scientificName <- as.character(all_scientific_names$scientificName)
-  all_scientific_names$main <- rep_len('true',nrow(all_scientific_names))
-  colnames(all_scientific_names)[2] <- 'name'
-
-  internalTaxonId <- NA
-  name <- NA
-  main <- NA
-  for(i in 3:ncol(formattedIOC)){
-    internalTaxonId <- alternate_taxonomy$internalTaxonId
-    name <- alternate_taxonomy[,i]
-    temp_alternate_name <- cbind.data.frame(internalTaxonId,name)
-    temp_alternate_name$main <- rep_len('false',nrow(temp_alternate_name))
-    colnames(temp_alternate_name) <- c('internalTaxonId','name','main')
-    all_scientific_names <- rbind(all_scientific_names,temp_alternate_name)
-  }
-  all_scientific_names <- unique(all_scientific_names[!is.na(all_scientific_names$name),])
+  altnames_gathered$main <- c(rep_len('true',nrow(altnames_gathered[altnames_gathered$database==temp_colname,])),
+                              rep_len('false',nrow(altnames_gathered[altnames_gathered$database!=temp_colname,])))
+  all_scientific_names <- altnames_gathered[,c('internalTaxonId','name','main')]
+  all_scientific_names$name <- as.character(all_scientific_names$name)
+  # remove duplicated names
+  all_scientific_names <- unique(tidyr::as_tibble(all_scientific_names)[!is.na(all_scientific_names$name),])
   duplicated_rows <- duplicated(all_scientific_names[c('internalTaxonId','name')])
   dup_row_check <- all_scientific_names[duplicated_rows,]
   if(all(dup_row_check$main == 'false')){
@@ -89,8 +91,6 @@ IOC.altnames <- function(formattedIOC, cleaned_redlist_data){
     warning('something went wrong removing duplicates')
   }
   all_scientific_names <- all_scientific_names[order(all_scientific_names$internalTaxonId),]
-  source <- rep_len('IOC', nrow(all_scientific_names))
-  all_scientific_names <- cbind(all_scientific_names,source)
-  rownames(all_scientific_names) <- c(1:nrow(all_scientific_names))
+  all_scientific_names$source <- rep_len('IOC', nrow(all_scientific_names))
   return(all_scientific_names)
 }
