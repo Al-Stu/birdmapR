@@ -94,8 +94,8 @@ cleanTexts <- function(paper_texts, remove_post_text = T, remove_stop_words = T)
                               )
 
   if(remove_stop_words){
-    paper_text$cleaned_paper_text <- removeWords(paper_text$cleaned_paper_text,
-                                                 tm::stopwords("english"))
+    paper_text$cleaned_paper_text <- tm::removeWords(paper_text$cleaned_paper_text,
+                                                     tm::stopwords("english"))
   }
 
   if(remove_post_text){
