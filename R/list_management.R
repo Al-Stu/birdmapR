@@ -41,4 +41,3 @@ importcsvlist <- function(directory, pattern){
   return(result)
 }
 
-

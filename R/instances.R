@@ -23,13 +23,24 @@ instances <- function(x, search_string, x_id, search_id){
   return(result)
 }
 
-# INSTANCESNOOVERLAP
-# as instances but removes all cases where one search term is returned inside another search term
-  # e.g. if 'owl' and 'scops owl' are both search terms, any time scops owl is written, it will not count as an instance of owl
-# it returns a matrix with number of instances of each search term in each
-# requires stringr to work
+#' INSTANCESNOOVERLAP
+#'
+#' as instances but removes all cases where one search term is returned inside another search term
+#' e.g. if 'owl' and 'scops owl' are both search terms, any time scops owl is written, it will not count as an instance of owl
+#' it returns a matrix with number of instances of each search term in each requires stringr to work
+#'
+#' @param x vector of texts to be searched within
+#' @param search_string vector of strings to search
+#' @param x_id vector of ids corresponding to texts in \code{x}
+#' @param search_id vector of ids corresponding to search terms in \code{search_string}
+#'
+#' @return matrix with number of instances of each search term in each text
+#'
+#' @import stringr
+#'
 #' @export
-instancesnooverlap <- function(x, search_string, x_id, search_id){
+
+instancesNoOverlap <- function(x, search_string, x_id, search_id){
   result <- matrix(nrow = length(search_string), ncol = length(x))
   for(p in 1:length(x)){
     locations <- stringr::str_locate_all(string = x[p], pattern = search_string) # create list with start and end of each instance of search string in each paper text
