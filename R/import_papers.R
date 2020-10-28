@@ -83,7 +83,9 @@ cleanTexts <- function(paper_texts, remove_post_text = T, remove_stop_words = T)
                                                                              )
                                                            ) %>%
                                 unlist(),
-                              cleaned_paper_text = iconv(original_paper_text, to = 'ASCII') %>%  # convert to ascii characters
+                              cleaned_paper_text = textclean::replace_non_ascii(original_paper_text,
+                                                                                replacement = "",
+                                                                                remove.nonconverted = TRUE) %>%  # convert to ascii characters
                                 textclean::replace_white() %>%
                                 tm::stripWhitespace() %>%  # remove white space
                                 tm::removePunctuation() %>%   # remove punctuation
