@@ -6,7 +6,7 @@
 
 # author: alice stuart | date modified: 2020-02-28
 # compiled in R version 3.6.2 (2019-12-12) Dark and Stormy Night running x86_64-apple-darwin15.6.0
-
+#' @export
 focus <- function(matrix){
   position_max <- vector(mode = 'numeric', length = ncol(matrix))
   result <- vector(mode = 'numeric', length = ncol(matrix))

@@ -11,6 +11,7 @@
 
 
 ### FUNCTION -------------------------------------------------------------
+#' @export
 fuzzymatchpairs <- function(x,y){
   # create a matrix with the Standard Levenshtein distance between the two vectors
   dist.name <- adist(tm::removePunctuation(x),
@@ -30,6 +31,7 @@ fuzzymatchpairs <- function(x,y){
 }
 
 # FUZZYMATCHPOSITION
+#' @export
 fuzzymatchposition <- function(x,y){
   # create a matrix with the Standard Levenshtein distance between the name fields of both sources
   dist.name<-adist(x,y, partial = FALSE, ignore.case = TRUE)

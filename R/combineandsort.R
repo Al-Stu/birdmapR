@@ -7,7 +7,7 @@
 
 # author: alice stuart | date modified: 2020-03-12
 # compiled in R version 3.6.3 (2020-02-29) -- "Holding the Windsock" running x86_64-apple-darwin15.6.0
-
+#' @export
 combineandsort <- function(names1,names2){
   # remove blank sci names
   combined <- rbind(names1,names2)

@@ -3,12 +3,12 @@
 #-------------------------------------------------------------------------#
 
 # MATRIXROWTOTALS
-# this function finds the total for each row in a matrix, option to specify IDs that match matrix names 
+# this function finds the total for each row in a matrix, option to specify IDs that match matrix names
 # it outputs a numeric vector with length nrow
 
 # author: alice stuart | date modified: 2020-02-28
 # compiled in R version 3.6.2 (2019-12-12) Dark and Stormy Night running x86_64-apple-darwin15.6.0
-
+#' @export
 matrixrowtotals <- function(matrix, IDs){
   result <- vector(mode = 'numeric', length = nrow(matrix))
   if(is.null(IDs)|is.null(rownames(matrix))){
@@ -31,7 +31,7 @@ matrixrowtotals <- function(matrix, IDs){
 
 # author: alice stuart | date modified: 2020-03-02
 # compiled in R version 3.6.2 (2019-12-12) Dark and Stormy Night running x86_64-apple-darwin15.6.0
-
+#' @export
 matrixtodataframe <- function(matrix, x_title, y_title){
   result <- data.frame(y=character(),
                        x=character(),
@@ -58,7 +58,7 @@ matrixtodataframe <- function(matrix, x_title, y_title){
 
 # author: alice stuart | date modified: 2020-02-28
 # compiled in R version 3.6.2 (2019-12-12) Dark and Stormy Night running x86_64-apple-darwin15.6.0
-
+#' @export
 weighteduse <- function(matrix){
   result <- matrix(nrow = nrow(matrix), ncol = ncol(matrix))
   for (i in 1:ncol(matrix)) {
@@ -67,7 +67,7 @@ weighteduse <- function(matrix){
     }else{
       result[,i] <- matrix[,i]/sum(matrix[,i])
     }
-  }  
+  }
   rownames(result) <- rownames(matrix)
   colnames(result) <- colnames(matrix)
   return(result)
