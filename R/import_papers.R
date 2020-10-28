@@ -39,6 +39,8 @@ matchPDFsToRefs <- function(PDFs,
 #'
 #' @return a list with one element per pdf, element names are the original file names,
 #' within each element, there is an object per page
+#'
+#' @export
 
 importPDFs <- function(pdf_location){
   # get original working directory
