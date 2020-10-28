@@ -118,13 +118,13 @@ cleanTexts <- function(paper_texts, remove_post_text = T, remove_stop_words = T)
 #'
 removePostText <- function(paper_text){
   for(i in 1:length(paper_text)){
-    if(length(stringr::str_locate_all(all_lower[i],  "(A|a)cknowledgement")$start)==1){
+    if(length(stringr::str_locate_all(paper_text[i],  "(A|a)cknowledgement")$start)==1){
       paper_text[i] <- gsub(x = paper_text[i],  pattern = "(A|a)cknowledgement(.*?)$", ignore.case = TRUE, replacement = '')
     }
-    if(length(str_locate_all(all_lower[i],  "(B|b)ibliography")$start)==1){
+    if(length(str_locate_all(paper_text[i],  "(B|b)ibliography")$start)==1){
       paper_text[i] <- gsub(x = paper_text[i],  pattern = "(B|b)ibliography(.*?)$", ignore.case = TRUE, replacement = '')
     }
-    if(length(str_locate_all(all_lower[i],  "(R|r)eferences")$start)==1){
+    if(length(str_locate_all(paper_text[i],  "(R|r)eferences")$start)==1){
       paper_text[i] <- gsub(x = paper_text[i],  pattern = "(R|r)eferences(.*?)$", ignore.case = TRUE, replacement = '')
     }
   }
