@@ -12,6 +12,18 @@
 # compiled in R version 3.6.2 (2019-12-12) Dark and Stormy Night running x86_64-apple-darwin15.6.0
 
 instances <- function(x, search_string, x_id, search_id){
+  if(any(is.na(search_string))){
+    na_searches <- is.na(search_string)
+    warning(paste0(sum(na_searches),
+                   " search term(s) have been removed due to NA values, these are:\n",
+                   paste(search_id[na_searches], collapse = ", "),
+                   "\nTheir positions are:\n",
+                   paste(which(na_searches), collapse = ", ")
+                   )
+            )
+    search_string <- search_string[!na_searches]
+    search_id <- search_id[!na_searches]
+  }
   result <- matrix(nrow = length(search_string), ncol = length(x))
   for(i in 1:length(search_string)){
     locations <- stringr::str_locate_all(string = x, pattern = search_string[i]) # create list with start and end of each instance of search string in each paper text
@@ -41,6 +53,18 @@ instances <- function(x, search_string, x_id, search_id){
 #' @export
 
 instancesNoOverlap <- function(texts, search_string, text_ids, search_id){
+  if(any(is.na(search_string))){
+    na_searches <- is.na(search_string)
+    warning(paste0(sum(na_searches),
+                   " search term(s) have been removed due to NA values, these are:\n",
+                   paste(search_id[na_searches], collapse = ", "),
+                   "\nTheir positions are:\n",
+                   paste(which(na_searches), collapse = ", ")
+    )
+    )
+    search_string <- search_string[!na_searches]
+    search_id <- search_id[!na_searches]
+  }
   result <- matrix(nrow = length(search_string), ncol = length(texts))
   for(p in 1:length(texts)){
     search_terms_to_search <- whichTermsToSearch(texts[p], search_string)
