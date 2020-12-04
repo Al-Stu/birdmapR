@@ -68,34 +68,38 @@ instancesNoOverlap <- function(texts, search_string, text_ids, search_id){
   result <- matrix(nrow = length(search_string), ncol = length(texts))
   for(p in 1:length(texts)){
     search_terms_to_search <- whichTermsToSearch(texts[p], search_string)
-    locations <- stringr::str_locate_all(string = texts[p], pattern = search_string[search_terms_to_search]) # create list with start and end of each instance of search string in each paper text
-    locations_2 <- locations
-    for(j in 1: length(locations)){
-      if(length(locations[[j]])==0){
-        locations_2[[j]] <- locations[[j]]
-      }else{
-        if(length(locations[[j]])==2){
-          uses <- withinlist(locations,locations[[j]])
-          if(sum(sapply(uses,sum))>1){
-            locations_2[[j]] <- data.frame(start=double(),end=double())
-          }
+    if(sum(search_terms_to_search) == 0){
+      result[ , p] <- 0
+    } else{
+      locations <- stringr::str_locate_all(string = texts[p], pattern = search_string[search_terms_to_search]) # create list with start and end of each instance of search string in each paper text
+      locations_2 <- locations
+      for(j in 1: length(locations)){
+        if(nrow(locations[[j]])==0){
+          locations_2[[j]] <- locations[[j]]
         }else{
-          if(length(locations[[j]])>2){
-            to_delete <- c()
-            for(l in nrow(locations[[j]]):1){
-              uses <- withinlist(locations,locations[[j]][l,])
-              if(sum(sapply(uses,sum))>1){
-                to_delete <- c(to_delete,l)
-              }
+          if(nrow(locations[[j]])==1){
+            uses <- withinlist(locations,locations[[j]])
+            if(sum(sapply(uses,sum))>1){
+              locations_2[[j]] <- data.frame(start=double(),end=double())
             }
-            if(length(to_delete)!=0){
-              locations_2[[j]] <- locations[[j]][-to_delete,]
+          }else{
+            if(nrow(locations[[j]])>1){
+              to_delete <- c()
+              for(l in nrow(locations[[j]]):1){
+                uses <- withinlist(locations,locations[[j]][l,])
+                if(sum(sapply(uses,sum))>1){
+                  to_delete <- c(to_delete,l)
+                }
+              }
+              if(length(to_delete)!=0){
+                locations_2[[j]] <- locations[[j]][-to_delete,]
+              }
             }
           }
         }
       }
     }
-    no_uses <- as.numeric(lapply(locations_2, nrow))
+    no_uses <- unlist(lapply(locations_2, function(X) length(X)/2)) # length is 2 x number of rows (bus osmething to do with removing rows due to overlap stops nrow from working)
     result[search_terms_to_search, p] <- unlist(no_uses) # put number of instances into vector
     result[!search_terms_to_search, p] <- 0
   }
