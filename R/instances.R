@@ -29,9 +29,9 @@ instances <- function(x, search_string, x_id, search_id){
 #' e.g. if 'owl' and 'scops owl' are both search terms, any time scops owl is written, it will not count as an instance of owl
 #' it returns a matrix with number of instances of each search term in each requires stringr to work
 #'
-#' @param x vector of texts to be searched within
+#' @param texts vector of texts to be searched within
 #' @param search_string vector of strings to search
-#' @param x_id vector of ids corresponding to texts in \code{x}
+#' @param text_ids vector of ids corresponding to texts in \code{x}
 #' @param search_id vector of ids corresponding to search terms in \code{search_string}
 #'
 #' @return matrix with number of instances of each search term in each text
@@ -40,10 +40,11 @@ instances <- function(x, search_string, x_id, search_id){
 #'
 #' @export
 
-instancesNoOverlap <- function(x, search_string, x_id, search_id){
-  result <- matrix(nrow = length(search_string), ncol = length(x))
-  for(p in 1:length(x)){
-    locations <- stringr::str_locate_all(string = x[p], pattern = search_string) # create list with start and end of each instance of search string in each paper text
+instancesNoOverlap <- function(texts, search_string, text_ids, search_id){
+  result <- matrix(nrow = length(search_string), ncol = length(texts))
+  for(p in 1:length(texts)){
+    search_terms_to_search <- whichTermsToSearch(texts[p], search_string)
+    locations <- stringr::str_locate_all(string = texts[p], pattern = search_string[search_terms_to_search]) # create list with start and end of each instance of search string in each paper text
     locations_2 <- locations
     for(j in 1: length(locations)){
       if(length(locations[[j]])==0){
@@ -70,10 +71,22 @@ instancesNoOverlap <- function(x, search_string, x_id, search_id){
         }
       }
     }
-    no_uses <- as.numeric(lapply(locations_2, length))/2 # list with number of instances of search string in each paper text, as locations is a list, length returns number of items in the list (i.e. nrow x ncol), two columns so divide by two to get nrow (should probably just use nrow function)
-    result[,p] <- unlist(no_uses) # put number of instances into vector
+    no_uses <- as.numeric(lapply(locations_2, nrow))
+    result[search_terms_to_search, p] <- unlist(no_uses) # put number of instances into vector
+    result[!search_terms_to_search, p] <- 0
   }
   rownames(result) <- search_id
-  colnames(result) <- x_id
+  colnames(result) <- text_ids
   return(result)
+}
+
+whichTermsToSearch <- function(text, search_string){
+  text_words <- str_split(text, pattern = " ") %>%
+    .[[1]] %>%
+    .[. != ""]
+  search_words <- str_split(search_string, pattern = "[ ]|[|]") %>%
+    lapply(function(X) X[X != "NA" & str_length(X) > 1])
+  worth_checking_for <- sapply(search_words, function(X) any(text_words %in% X))
+
+  return(worth_checking_for)
 }

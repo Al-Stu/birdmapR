@@ -4,14 +4,14 @@
 \alias{instancesNoOverlap}
 \title{INSTANCESNOOVERLAP}
 \usage{
-instancesNoOverlap(x, search_string, x_id, search_id)
+instancesNoOverlap(texts, search_string, text_ids, search_id)
 }
 \arguments{
-\item{x}{vector of texts to be searched within}
+\item{texts}{vector of texts to be searched within}
 
 \item{search_string}{vector of strings to search}
 
-\item{x_id}{vector of ids corresponding to texts in \code{x}}
+\item{text_ids}{vector of ids corresponding to texts in \code{x}}
 
 \item{search_id}{vector of ids corresponding to search terms in \code{search_string}}
 }
