@@ -19,4 +19,9 @@ bird_search_terms <- all_names %>%
   dplyr::left_join(all_names[ , c('internalTaxonId', 'scientificName')]) %>%
   unique()
 
+bird_search_terms$regex_sci[bird_search_terms$scientificName == "Vidua codringtoni"] <- "vidua codringtoni|vidua chalybeata codringtoni|v codringtoni|v chalybeata codringtoni|v c codringtoni"
+
+bird_search_terms$regex_both[bird_search_terms$scientificName == "Vidua codringtoni"] <- paste0(bird_search_terms$regex_common[bird_search_terms$scientificName == "Vidua codringtoni"],
+                                                                                                "|",
+                                                                                                bird_search_terms$regex_sci[bird_search_terms$scientificName == "Vidua codringtoni"])
 usethis::use_data(bird_search_terms, overwrite = TRUE)
